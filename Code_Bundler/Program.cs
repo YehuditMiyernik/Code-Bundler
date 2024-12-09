@@ -1,10 +1,7 @@
 ﻿using System.CommandLine;
 
-//catch errors
-//catch this error - '-' was not matched. Did you mean one of the following?
-//fib bundle -n -o "C:\Users\ymiyernx\OneDrive - Intel Corporation\Desktop\פרקטיקוד\Code-Bundler-master\Code_Bundler\File.txt" -a Yehudit-Holtzman -c
-
 var bundleCommand = new Command("bundle", "Bundle code files for single file");
+var create_rsp = new Command("create_rsp", "Create command for bundle command");
 
 var language = new Option<string>(new string[] { "--language", "-l" }, "language")
 {
@@ -30,6 +27,7 @@ bundleCommand.SetHandler((language, output, note, sort, removeEmptyLines, author
 {
     try
     {
+        //Create file
         using (StreamWriter writer = new StreamWriter(output.FullName))
         {
             if (author != null)
@@ -37,17 +35,21 @@ bundleCommand.SetHandler((language, output, note, sort, removeEmptyLines, author
                 writer.WriteLine($"// Name: {author}");
                 writer.WriteLine();
             }
+            //Find files with the requested extension
             string extension = GetFileExtension(language);
             var query = Directory.GetFiles(Directory.GetCurrentDirectory(), $"*{extension}")
             .Where(filePath => filePath != output.FullName);
 
+            //Sort files by user request
             query = sort
                 ? query.OrderBy(filePath => Path.GetExtension(filePath))
                 : query.OrderBy(filePath => Path.GetFileName(filePath));
             string[] files = query.ToArray();
 
+            //Add files content to bundle file
             foreach (string filePath in files)
             {
+                //Note file path
                 if (note)
                     writer.WriteLine($"// File path: {filePath}");
                 string[] lines = File.ReadAllLines(filePath);
@@ -64,9 +66,27 @@ bundleCommand.SetHandler((language, output, note, sort, removeEmptyLines, author
     }
     catch(Exception ex) 
     {
-        Console.WriteLine(ex.ToString());
+        Console.WriteLine(ex.Message);
     }
 }, language, output, note, sort, removeEmptyLines, author);
+
+create_rsp.SetHandler(() =>
+{
+    string command = " ";
+    Console.WriteLine("Enter language to bundle");
+    command += $"--language {Console.ReadLine()} ";
+    Console.WriteLine("Enter output file name and path");
+    command += $"--output {Console.ReadLine()} ";
+    Console.WriteLine("Enter author name");
+    command += $"--author {Console.ReadLine()} ";
+    Console.WriteLine("Sort files by language? [y/n]");
+    command += Console.ReadLine().ToLower() == "y" ? "--sort " : "";
+    Console.WriteLine("Note file path in output file? [y/n]");
+    command += Console.ReadLine().ToLower() == "y" ? "--note " : "";
+    Console.WriteLine("Remove empty lines? [y/n]");
+    command += Console.ReadLine().ToLower() == "y" ? "--clean " : "";
+    File.WriteAllText("bundle.rsp", command);
+});
 
 string GetFileExtension(string language)
 {
@@ -92,9 +112,10 @@ string GetFileExtension(string language)
         { "all", ".*" }
     };
     var extension = languageExtensions.GetValueOrDefault(language);
-    return extension ?? throw new ArgumentException($"Unsupported language or file extension: {language}");
+    return extension ?? throw new Exception($"Error: Unsupported language {language}");
 }
 
 var rootCommand = new RootCommand("Root command for file bundler CLI");
 rootCommand.AddCommand(bundleCommand);
+rootCommand.AddCommand(create_rsp);
 rootCommand.InvokeAsync(args);
